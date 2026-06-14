@@ -213,16 +213,17 @@ const deleteVideo = asyncWrapper(async (req, res) => {
     else if(video.owner.toString()!==req.user._id.toString()){
         throw new ApiError(403, "ACCESS DENIED: You are not the owner of this video")
     }
+
+    const deletedVideo = await Video.findByIdAndDelete(videoId.trim());
+    if(!deletedVideo){
+        throw new ApiError(500, "Error in deleting video from database")
+    }
     const thumbnailPublicId = get_publicID_from_cloudinaryUrl(video.thumbnail);
     const videoFilePublicId = get_publicID_from_cloudinaryUrl(video.videoFile);
     const response1 = await cloudinary.uploader.destroy(thumbnailPublicId);
     const response2 = await cloudinary.uploader.destroy(videoFilePublicId);
     if(!response1 || !response2){
-        throw new ApiError(500, "Error in deleting files from cloudinary")
-    }
-    const deletedVideo = await Video.findByIdAndDelete(videoId.trim());
-    if(!deletedVideo){
-        throw new ApiError(500, "Error in deleting video from database")
+        throw new ApiError(500, "video deleted from db, error in deleting files from cloudinary")
     }
     //delete comments
     const comments = (await Comment.aggregate(
