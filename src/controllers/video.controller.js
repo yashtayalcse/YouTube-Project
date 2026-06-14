@@ -142,6 +142,7 @@ const publishAVideo = asyncWrapper(async (req, res) => { //protected function
 })
 
 const getVideoById = asyncWrapper(async (req, res) => { //optionalauth
+    //also add likes, isLikedByCurrUser, isVideoOwner fields in response
     const { videoId } = req.params
 
     if(!isValidObjectId(videoId?.trim())){
@@ -159,7 +160,16 @@ const getVideoById = asyncWrapper(async (req, res) => { //optionalauth
         throw new ApiError(404, "Owner of the video not found, error from getVideoById controller")
     }
     video.owner = owner;
-    return res.status(200).json(new ApiResponse(200, "Video fetched successfully", video));
+    const likes = await Like.aggregate([
+        {$match: {video: videoId}},
+    ])
+
+    const videoObj = video.toObject();
+    videoObj.likes = likes.length;
+    videoObj.isLikedByCurrUser = likes.map(like=>like._id.toString()).includes(req.user?._id.toString());
+    videoObj.isVideoOwner = req.user?._id.toString() === video.owner._id.toString();
+
+    return res.status(200).json(new ApiResponse(200, "Video fetched successfully", videoObj));
 })
 
 const updateVideo = asyncWrapper(async (req, res) => {
