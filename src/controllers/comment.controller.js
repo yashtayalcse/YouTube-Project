@@ -4,6 +4,7 @@ import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import asyncWrapper from "../utils/asyncWrapper.js"
 import { Video } from "../models/video.model.js"
+import { Like } from "../models/like.model.js"
 
 const getVideoComments = asyncWrapper(async (req, res) => {
     //TODO: get all comments for a video
@@ -35,8 +36,9 @@ const getVideoComments = asyncWrapper(async (req, res) => {
     if(!video.isPublished && (!req.loggedIn || video.owner.toString()!==req.user._id.toString())){
         throw new ApiError(403, "ACCESS DENIED: Video is not published, cannot get comments")
     }
+
     const comments = await Comment.aggregate([
-        {$match: {video: videoId}},
+        {$match: {video: new mongoose.Types.ObjectId(videoId.trim())}},
         {$sort: {createdAt: -1}},
         {$skip: skip},
         {$limit: limit},
@@ -62,12 +64,12 @@ const getVideoComments = asyncWrapper(async (req, res) => {
             "likesCount": {$size: "$likes"},
             "isLikedByCurrUser": {
                 $in: [
-                    req.user?._id,
+                    req.user?._id,   //isko toString kee zrurat nhi hai bcz optionalAuth ne already req.user._id ko string me convert krke diya hai
                     {
                         $map: {
                             input: "$likes",
                             as: "like",
-                            in: "$$like.owner"
+                            in: {$toObjectId: "$$like.owner"}
                         }
                     }
                 ]
@@ -78,7 +80,7 @@ const getVideoComments = asyncWrapper(async (req, res) => {
             $project: {
                 content: 1,
                 owner: {
-                    _id: 1,
+                    _id:1,
                     username: 1,
                     avatar: 1
                 },
@@ -87,10 +89,10 @@ const getVideoComments = asyncWrapper(async (req, res) => {
                 updatedAt: 1,
                 createdAt: 1,
                 isCommentOwner: {
-                    $eq: ["$owner._id", req.user?._id]
+                    $eq: [ {$toString: "$owner._id"}, req.user?._id.toString()]
                 },
                 isVideoOwner: {
-                    $eq: [video.owner, req.user?._id]
+                    $eq: [video.owner.toString(), req.user?._id.toString()]
                 }
             }
         }
@@ -102,14 +104,74 @@ const getVideoComments = asyncWrapper(async (req, res) => {
 
 const addComment = asyncWrapper(async (req, res) => {
     // TODO: add a comment to a video
+    const {videoId} = req.params;
+    const {content} = req.body;
+    if(!isValidObjectId(videoId.trim())){
+        throw new ApiError(400, "Invalid video id")
+    }
+    const video = await Video.findById(videoId.trim());
+    if(!video){
+        throw new ApiError(404, "Video not found")
+    }
+    if(!video.isPublished && video.owner.toString()!==req.user?._id.toString()){
+        throw new ApiError(403, "ACCESS DENIED: Video is not published, cannot add comment")
+    }
+    const comment = await Comment.create(
+        {
+            content: content,
+            video: videoId,
+            owner: req.user._id
+        }
+    )
+    return res.status(201).json(new ApiResponse(201, "Comment added successfully", comment))
 })
 
 const updateComment = asyncWrapper(async (req, res) => {
     // TODO: update a comment
+    const {commentId} = req.params;
+    const {content} = req.body;
+    if(!isValidObjectId(commentId)){
+        throw new ApiError(400,"commentId invalid")
+    }
+    const comment = await Comment.findById(commentId);
+    if(!comment){
+        throw new ApiError(400,"Comment not found")
+    }
+    if(comment.owner.toString()!==req.user._id.toString()){
+        throw new ApiError(400,"ACESS DENIED! can't update comment you don't own")
+    }
+    comment.content = content;
+    const updatedComment = await comment.save({validateBeforeSave : false});
+    if(!updatedComment){
+        throw new ApiError(500,"Failed to update comment")
+    }
+    return res.status(200).json(new ApiResponse(200, "Comment updated successfully", updatedComment));
 })
 
 const deleteComment = asyncWrapper(async (req, res) => {
     // TODO: delete a comment
+    /*
+    1. get commentID and validate it
+    2. check if user is comment owner or video owner to which comment was made
+    3. delete comment
+    4. delete all likes on the comment
+    */
+   const {commentId} = req.params;
+   if(!isValidObjectId(commentId)){
+    throw new ApiError(400,"Invalid Comment id")
+   }
+   const comment = await Comment.findById(commentId);
+   if(!comment){
+    throw new ApiError(400,"Comment not found!")
+   }
+   const video = await Video.findById(comment.video);
+   if(comment.owner.toString()!==req.user._id.toString() || req.user._id.toString()!==video.owner.toString()){
+    throw new ApiError(400,"ACCESS DENIED: can't delete comment")
+   }
+   await Comment.deleteOne({_id:commentId});
+   await Like.deleteMany({comment: commentId});
+   return res.status(200).json(new ApiResponse(200, "Comment deleted successfully", null));
+
 })
 
 export {

@@ -16,7 +16,7 @@ const commentSchema = new mongoose.Schema({
     ref: "User",
     required: true
   }
-})
+}, {timestamps: true})
 
 commentSchema.plugin(mongooseAggregatePaginate);
 
