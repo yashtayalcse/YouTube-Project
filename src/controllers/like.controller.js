@@ -88,7 +88,7 @@ const getLikedVideos = asyncWrapper(async (req, res) => {
     )
     const videos = likedVideos.sort((a, b) => b.createdAt - a.createdAt).map(like => like.video)
 
-    return res.status(200).json(new ApiResponse(200, "Liked videos fetched successfully", videos))
+    return res.status(200).json(new ApiResponse(200, `Liked videos fetched successfully (${videos.length})`, videos))
 })
 
 export {
