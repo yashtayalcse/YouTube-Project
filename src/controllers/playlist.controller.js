@@ -116,7 +116,8 @@ const getPlaylistById = asyncWrapper(async (req, res) => {
                 title: 1,
                 duration: 1,
                 thumbnail: 1,
-                ownerUserName: "$owner.username"
+                isPublished: 1,
+                owner: 1
                 }
             }
         ]
@@ -138,7 +139,7 @@ const getPlaylistById = asyncWrapper(async (req, res) => {
             },
             videoCount: {$size: "$videos"}
         }
-    }
+    },
    ])
    if(playlist.length==0){
     throw new ApiError(400, "Playlist not found")
