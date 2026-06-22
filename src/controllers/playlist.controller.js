@@ -45,8 +45,9 @@ const getUserPlaylists = asyncWrapper(async (req, res) => {
     if(!isOwner){
         playlists = playlists.filter(p=>p.visibility==="public")
     }
-    playlists = playlists.map(
-        p=>{
+    playlists = await Promise.all(
+        playlists.map(
+        async (p)=>{
             const numbOfVideos=p.videos.length;
             let video;
             if(numbOfVideos>0){
@@ -64,6 +65,7 @@ const getUserPlaylists = asyncWrapper(async (req, res) => {
             }
         }
     )
+    )
     return res.status(200).json(new ApiResponse(200,"user playlists fetched",{playlists, isOwner}))
 })
 
@@ -80,10 +82,7 @@ const getPlaylistById = asyncWrapper(async (req, res) => {
    if(!isValidObjectId(playlistId)){
     throw new ApiError(400, "Playlist not found")
    }
-   const isOwner = playlist.owner._id.toString()==req.user?._id.toString();
-   if(playlist.visibility=="private" && !isOwner){
-    throw new ApiError(401,"Playlist public access not allowed!")
-   }
+
    const playlist = await Playlist.aggregate([
     {$match: {_id: new mongoose.Types.ObjectId(playlistId)}},
     {$lookup: {
@@ -105,7 +104,7 @@ const getPlaylistById = asyncWrapper(async (req, res) => {
             {$lookup: {
                 from: "users",
                 localField: "owner",
-                foregnField: "_id",
+                foreignField: "_id",
                 as: "owner",
                 pipeline: [
                     {$project: {_id: 1, username: 1}}
@@ -123,22 +122,31 @@ const getPlaylistById = asyncWrapper(async (req, res) => {
         ]
     }},
     {
-        $filter: {
-            input: "$videos",
-            as: "video",
-            cond: {
-                $or: [
-                    { $eq: ["$$video.isPublished", "true"] },
-                    { $eq: ["$$video.owner._id", new mongoose.Types.ObjectId(req.user?._id)] }
-                ]
-            }
+        $addFields: 
+        {
+            videos: {
+                $filter: {
+                    input: "$videos",
+                    as: "video",
+                    cond: {
+                        $or: [
+                            { $eq: ["$$video.isPublished", true] },
+                            { $eq: ["$$video.owner._id", new mongoose.Types.ObjectId(req.user?._id)] }
+                        ]
+                    }
+                }
+            },
+            videoCount: {$size: "$videos"}
         }
-    },
-    {$addFields: 
-        {videoCount: {$size: "$videos"}},
     }
    ])
-   console.log(playlist)
+   if(playlist.length==0){
+    throw new ApiError(400, "Playlist not found")
+   }
+   const isOwner = playlist[0]?.owner._id.toString()==req.user?._id.toString();
+   if(playlist[0]?.visibility=="private" && !isOwner){
+    throw new ApiError(401,"Playlist public access not allowed!")
+   }
    const thumbnail = playlist[0]?.videos?.[0]?.thumbnail || FallbackPlaylistThumbnail;
     return res.status(200).json(new ApiResponse(200,"playlist fetched",{...playlist[0], isOwner, thumbnail}));
 })
