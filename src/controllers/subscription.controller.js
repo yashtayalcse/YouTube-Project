@@ -64,7 +64,10 @@ const getUserChannelSubscribers = asyncWrapper(async (req, res) => {
             }
         }
     ])
-    return res.status(200).json(new ApiResponse(200, `Subscribers fetched`, subscribers))
+    return res.status(200).json(new ApiResponse(200, `Subscribers fetched`, {
+        subscribers,
+        count: subscribers.length
+    }))
 
 })
 
@@ -129,7 +132,10 @@ const getSubscribedChannels = asyncWrapper(async (req, res) => {
     }
    ]
     const subscribedChannels = await Subscription.aggregate(pipeline)
-    return res.status(200).json(new ApiResponse(200, `Subscribed channels fetched`, subscribedChannels))
+    return res.status(200).json(new ApiResponse(200, `Subscribed channels fetched`, {
+        subscribedChannels,
+        count: subscribedChannels.length
+    }))
 
 })
 

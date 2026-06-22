@@ -1,4 +1,4 @@
-import mongoose from "mongoose"
+import mongoose, {isValidObjectId} from "mongoose"
 import {Video} from "../models/video.model.js"
 import {Subscription} from "../models/subscription.model.js"
 import {Like} from "../models/like.model.js"
@@ -8,10 +8,50 @@ import asyncWrapper from "../utils/asyncWrapper.js"
 
 const getChannelStats = asyncWrapper(async (req, res) => {
     // TODO: Get the channel stats like total video views, total subscribers, total videos, total likes etc.
+    // channel id actually ek userId hee hai
+    const {channelId} = req.params;
+    if(!isValidObjectId(channelId)){
+        throw new ApiError(400,"invalid channelId, can't fetch videos")
+    }
+    let videos = await Video.find({owner: channelId});
+    const videoCount = videos.length;
+    let totalLikes=0;
+    let totalVideoViews=0;
+    for(let i=0;i<videoCount;i++){
+        const likes = await Like.find({video: videos[i]._id});
+        totalLikes = totalLikes+ likes.length;
+        totalVideoViews+= videos[i].views;
+    }
+    return res.status(200).json(new ApiResponse(200,"channel stats fecthed",{
+        videoCount,
+        totalLikes,
+        totalVideoViews
+    }))
 })
 
 const getChannelVideos = asyncWrapper(async (req, res) => {
-    // TODO: Get all the videos uploaded by the channel
+
+    // channel id actually ek userId hee hai
+    const {channelId} = req.params;
+    if(!isValidObjectId(channelId)){
+        throw new ApiError(400,"invalid channelId, can't fetch videos")
+    }
+    const isOwner = req.user?._id.toString()===channelId;
+
+    const videos= await Video.find({
+        owner: channelId,
+        $or: [
+            {isPublished: true},
+            {owner: req.user?._id}
+        ]
+    })
+
+    return res.status(200).json(new ApiResponse(200,"videos fetched", 
+        {videos,
+        isOwner,
+        videoCount: videos.length
+        }
+    ));
 })
 
 export {
