@@ -328,7 +328,7 @@ const getUserChannelProfile = asyncWrapper(
     const username = req.params.channelName.toLowerCase().trim();
 
     if(!username){
-      throw new ApiError(400,"username is required")
+      throw new ApiError(400,"channelName is required")
     }
 
     const channel = await User.aggregate([

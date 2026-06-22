@@ -19,7 +19,12 @@ const playlistSchema = new mongoose.Schema({
       ref: "Video",
       required: true
     }
-  ]
+  ],
+  visibility: {
+    type: String,
+    enum: ["public", "private"],
+    default: "public"
+  }
 }, {timestamps: true})
 
 export const Playlist = mongoose.model("Playlist",playlistSchema)
