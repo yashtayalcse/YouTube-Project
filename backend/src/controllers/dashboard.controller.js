@@ -15,13 +15,13 @@ const getChannelStats = asyncWrapper(async (req, res) => {
     }
     let videos = await Video.find({owner: channelId});
     const videoCount = videos.length;
-    let totalLikes=0;
     let totalVideoViews=0;
     for(let i=0;i<videoCount;i++){
-        const likes = await Like.find({video: videos[i]._id});
-        totalLikes = totalLikes+ likes.length;
         totalVideoViews+= videos[i].views;
+        videos[i] = videos[i]._id;
     }
+    const totalLikes = await Like.countDocuments({video: {$in: videos}})
+    
     return res.status(200).json(new ApiResponse(200,"channel stats fecthed",{
         videoCount,
         totalLikes,
